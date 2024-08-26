@@ -214,6 +214,10 @@ func loadConfigWithLogger(logger *zap.Logger, configFile, adapterName string) ([
 			return nil, "", fmt.Errorf("adapting config using %s: %v", adapterName, err)
 		}
 		logger.Info("adapted config to JSON", zap.String("adapter", adapterName))
+		// logger.Info(string(config))
+		// logger.Info(string(configFile))
+		// logger.Info(string(adaptedConfig))
+		// os.Exit(1)
 		for _, warn := range warnings {
 			msg := warn.Message
 			if warn.Directive != "" {

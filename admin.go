@@ -270,11 +270,14 @@ func (admin *AdminConfig) newAdminHandler(addr NetworkAddress, remote bool) admi
 	for _, m := range GetModules("admin.api") {
 		router := m.New().(AdminRouter)
 		handlerLabel := m.ID.Name()
+		fmt.Println("[newAdminHandler] handlerLabel is", handlerLabel)
 		for _, route := range router.Routes() {
+			fmt.Println("[newAdminHandler] route.Pattern is", route.Pattern)
 			addRoute(route.Pattern, handlerLabel, route.Handler)
 		}
 		admin.routers = append(admin.routers, router)
 	}
+	fmt.Println("[newAdminHandler] admin.routers is", admin.routers)
 
 	return muxWrap
 }
@@ -382,6 +385,7 @@ func (admin AdminConfig) allowedOrigins(addr NetworkAddress) []*url.URL {
 // that there is always an admin server (unless it is explicitly
 // configured to be disabled).
 func replaceLocalAdminServer(cfg *Config) error {
+	fmt.Println("[replaceLocalAdminServer] Into")
 	// always* be sure to close down the old admin endpoint
 	// as gracefully as possible, even if the new one is
 	// disabled -- careful to use reference to the current
@@ -423,7 +427,10 @@ func replaceLocalAdminServer(cfg *Config) error {
 		return err
 	}
 
+	fmt.Println("[replaceLocalAdminServer] newAdminHandler() into")
 	handler := cfg.Admin.newAdminHandler(addr, false)
+	fmt.Println("[replaceLocalAdminServer] newAdminHandler() out")
+	fmt.Println("-----------")
 
 	ln, err := addr.Listen(context.TODO(), 0, net.ListenConfig{})
 	if err != nil {
@@ -460,6 +467,9 @@ func replaceLocalAdminServer(cfg *Config) error {
 		adminLogger.Warn("admin endpoint on open interface; host checking disabled",
 			zap.String("address", addr.String()))
 	}
+
+	fmt.Println("[replaceLocalAdminServer] Out")
+	fmt.Println("-----------")
 
 	return nil
 }
@@ -1131,6 +1141,17 @@ func unsyncedConfigAccess(method, path string, body []byte, out io.Writer) error
 
 	var ptr any = rawCfg
 
+	fmt.Println("=============")
+	fmt.Println("[unsyncedConfigAccess] Before traverseLoop:");
+	fmt.Println("body:", string(body)) 		// 配置的完整json字符串
+	fmt.Println("method:", method)			// POST
+	fmt.Println("parts:", parts)			// [config]
+	fmt.Println("len(parts):", len(parts)) 	// 1
+	fmt.Println("ptr:", ptr)				// map[config:<nil>]
+	fmt.Println("rawCfg:", rawCfg)			// map[config:<nil>]
+	fmt.Println("val:", val)				// 配置的完整json对象(GO的数据结构)
+	fmt.Println("=============")
+
 traverseLoop:
 	for i, part := range parts {
 		switch v := ptr.(type) {
@@ -1206,6 +1227,10 @@ traverseLoop:
 							v[part] = append(arr, val)
 						}
 					} else {
+						fmt.Println("[unsyncedConfigAccess] In traverseLoop:");
+						fmt.Println("arr,ok:", arr, ok)
+						fmt.Println("val:", val)
+						fmt.Println("=============")
 						v[part] = val
 					}
 				case http.MethodPut:
@@ -1261,6 +1286,12 @@ traverseLoop:
 			return fmt.Errorf("invalid traversal path at: %s", strings.Join(parts[:i+1], "/"))
 		}
 	}
+
+	fmt.Println("[unsyncedConfigAccess] After traverseLoop:");
+	fmt.Println("ptr:", ptr)
+	fmt.Println("=============")
+	fmt.Println("rawCfg:", rawCfg)	// 此函数最终是为了，填充成 map["config":val] 这种形式
+	fmt.Println("=============")
 
 	return nil
 }

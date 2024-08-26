@@ -315,6 +315,8 @@ func indexConfigObjects(ptr any, configPath string, index map[string]string) err
 // allowPersist is false, it will not be persisted to disk,
 // even if it is configured to.
 func unsyncedDecodeAndRun(cfgJSON []byte, allowPersist bool) error {
+	fmt.Println("[unsyncedDecodeAndRun] Into")
+
 	// remove any @id fields from the JSON, which would cause
 	// loading to break since the field wouldn't be recognized
 	strippedCfgJSON := RemoveMetaFields(cfgJSON)
@@ -339,11 +341,16 @@ func unsyncedDecodeAndRun(cfgJSON []byte, allowPersist bool) error {
 		return fmt.Errorf("recursive config loading detected: pulled configs cannot pull other configs without positive load_delay")
 	}
 
+	fmt.Println("[unsyncedDecodeAndRun] before run()")
+
 	// run the new config and start all its apps
 	ctx, err := run(newCfg, true)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("[unsyncedDecodeAndRun] after run()")
+	fmt.Println("[unsyncedDecodeAndRun] newCfg:", newCfg)
 
 	// swap old context (including its config) with the new one
 	currentCtxMu.Lock()
@@ -351,8 +358,13 @@ func unsyncedDecodeAndRun(cfgJSON []byte, allowPersist bool) error {
 	currentCtx = ctx
 	currentCtxMu.Unlock()
 
+	fmt.Println("[unsyncedDecodeAndRun] before unsyncedStop(), oldCtx:", oldCtx)
+
 	// Stop, Cleanup each old app
 	unsyncedStop(oldCtx)
+
+	fmt.Println("[unsyncedDecodeAndRun] after unsyncedStop()")
+	fmt.Println("=============")
 
 	// autosave a non-nil config, if not disabled
 	if allowPersist &&
@@ -379,6 +391,9 @@ func unsyncedDecodeAndRun(cfgJSON []byte, allowPersist bool) error {
 		}
 	}
 
+	fmt.Println("[unsyncedDecodeAndRun] after autosave config")
+	fmt.Println("=============/")
+
 	return nil
 }
 
@@ -397,7 +412,22 @@ func unsyncedDecodeAndRun(cfgJSON []byte, allowPersist bool) error {
 // will want to use Run instead, which also
 // updates the config's raw state.
 func run(newCfg *Config, start bool) (Context, error) {
+	fmt.Println("----------")
+	fmt.Println("[run] Into")
+
+	fmt.Println("----------")
+	fmt.Println("Before provisionContext()")
+	fmt.Println("----------")
+
 	ctx, err := provisionContext(newCfg, start)
+
+	fmt.Println("----------")
+	fmt.Println("After provisionContext()")
+	fmt.Println("----------")
+
+	// {context.Background.WithCancel map[events:[0xc0007039e0] http:[0xc0003f86c0] http.matchers.host:[0xc0002a4240] tls:[0xc0000cfe00]] 0xc0003a08a0 [] [] []}
+	fmt.Println("[run] ctx:", ctx)
+
 	if err != nil {
 		return ctx, err
 	}
@@ -413,11 +443,18 @@ func run(newCfg *Config, start bool) (Context, error) {
 		return ctx, err
 	}
 
+	fmt.Println("[run] provisionAdminRouters after")
+	fmt.Println("----------")
+
 	// Start
 	err = func() error {
 		started := make([]string, 0, len(ctx.cfg.apps))
 		for name, a := range ctx.cfg.apps {
 			err := a.Start()
+
+			fmt.Println("[run]", name, "Started")
+			fmt.Println("----------/")
+
 			if err != nil {
 				// an app failed to start, so we need to stop
 				// all other apps that were already started
@@ -437,6 +474,9 @@ func run(newCfg *Config, start bool) (Context, error) {
 	if err != nil {
 		return ctx, err
 	}
+
+	fmt.Println("[run] Before finishSettingUp")
+	fmt.Println("[run] ctx.cfg ：", ctx.cfg)
 
 	// now that the user's config is running, finish setting up anything else,
 	// such as remote admin endpoint, config loader, etc.
@@ -509,6 +549,8 @@ func provisionContext(newCfg *Config, replaceAdminServer bool) (Context, error) 
 	// prepare the new config for use
 	newCfg.apps = make(map[string]App)
 
+	fmt.Println("[provisionContext] set up global storage Before")
+
 	// set up global storage and make it CertMagic's default storage, too
 	err = func() error {
 		if newCfg.StorageRaw != nil {
@@ -534,15 +576,22 @@ func provisionContext(newCfg *Config, replaceAdminServer bool) (Context, error) 
 		return ctx, err
 	}
 
+	fmt.Println("[provisionContext] set up global storage After")
+	fmt.Println("[provisionContext] Load and Provision each app and their submodules Before")
+
 	// Load and Provision each app and their submodules
 	err = func() error {
 		for appName := range newCfg.AppsRaw {
+			fmt.Println("appName:", appName)
 			if _, err := ctx.App(appName); err != nil {
 				return err
 			}
 		}
 		return nil
 	}()
+
+	fmt.Println("[provisionContext] Load and Provision each app and their submodules After")
+
 	return ctx, err
 }
 
@@ -557,6 +606,9 @@ func ProvisionContext(newCfg *Config) (Context, error) {
 
 // finishSettingUp should be run after all apps have successfully started.
 func finishSettingUp(ctx Context, cfg *Config) error {
+	fmt.Println("----====----")
+	fmt.Println("[finishSettingUp] Into")
+
 	// establish this server's identity (only after apps are loaded
 	// so that cert management of this endpoint doesn't prevent user's
 	// servers from starting which likely also use HTTP/HTTPS ports;
@@ -566,14 +618,23 @@ func finishSettingUp(ctx Context, cfg *Config) error {
 		return fmt.Errorf("provisioning remote admin endpoint: %v", err)
 	}
 
+	fmt.Println("[finishSettingUp] replaceRemoteAdminServer before")
+
 	// replace any remote admin endpoint
 	err = replaceRemoteAdminServer(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("provisioning remote admin endpoint: %v", err)
 	}
 
+	fmt.Println("[finishSettingUp] replaceRemoteAdminServer after")
+	fmt.Println("[finishSettingUp] The cfg:", cfg)
+	fmt.Println("[finishSettingUp] cfg.Admin:", cfg.Admin)
+	fmt.Println("[finishSettingUp] cfg.Admin.Config:", cfg.Admin.Config)
+
 	// if dynamic config is requested, set that up and run it
 	if cfg != nil && cfg.Admin != nil && cfg.Admin.Config != nil && cfg.Admin.Config.LoadRaw != nil {
+		fmt.Println("[finishSettingUp] cfg.Admin.Config.LoadDelay =", cfg.Admin.Config.LoadDelay)
+
 		val, err := ctx.LoadModule(cfg.Admin.Config, "LoadRaw")
 		if err != nil {
 			return fmt.Errorf("loading config loader module: %s", err)
@@ -638,6 +699,8 @@ func finishSettingUp(ctx Context, cfg *Config) error {
 			go func() { _ = runLoadedConfig(loadedConfig) }()
 		}
 	}
+
+	fmt.Println("----====----/")
 
 	return nil
 }
