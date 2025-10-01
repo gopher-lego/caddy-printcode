@@ -58,7 +58,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Install Go
       uses: actions/setup-go@v5
@@ -147,7 +147,7 @@ jobs:
     continue-on-error: true  # August 2020: s390x VM is down due to weather and power issues
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Run Tests
         run: |
           mkdir -p ~/.ssh && echo -e "${SSH_KEY//_/\\n}" > ~/.ssh/id_ecdsa && chmod og-rwx ~/.ssh/id_ecdsa
@@ -173,7 +173,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       
       - uses: goreleaser/goreleaser-action@v6
         with:
